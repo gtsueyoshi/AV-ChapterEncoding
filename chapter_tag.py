@@ -1,14 +1,27 @@
 
 
 
-
-
-
-
-
-
 # read the process control file
 def parse_control_file(process_file):
+    """
+    parse the chapter tag control flie
+
+    syntax for each line:
+
+    . leading "#" is a comment line
+
+    . [key] = [arg]
+
+        where key = { "time", "source", "type", "output" } and
+            : time [arg] is the name of the timecode file with lines of the form "hh:mm:ss {chaptername}
+            : source [arg] is the original audio or video source file
+            : type [arg] is { "audio", "video" } for encoding
+            : output [arg] is the name of the base of the output flie
+
+    . "split" is provided if you wish to split the output into individual chapter files
+
+    . all other lines are ignored
+    """
     size = 5
     input_data = [None] * size # [ timecode_file, source_file, source_type, output_file, split_bool]
     try:
@@ -23,6 +36,7 @@ def parse_control_file(process_file):
                 if (key == "split"):
                     input_data[4] = True
                 elif (parts[1] == "="):
+                    key = key.strip('"')
                     _text =  string_data = ' '.join(parts[2:]).strip() # Join the rest of the parts into a string
                     if (key == "time"): # time code file
                         input_data[0] = _text
@@ -79,38 +93,41 @@ def read_timecode_data(timecode_file):
 
 # process the chapter information
 def process_chapters(process_input):
-
-    # process the chapter times in the original file
-    filepath = process_input[0]
-    chapter_data = read_timecode_data(filepath)
+    """
+    map the elements of parsed process input into the underlying arguments in the
+    base routine and then call the base routine
+    """
+    # process the chapter times file
+    chapter_path = process_input[0]
+    chapter_data = read_timecode_data(chapter_path)
 
     # process the input file using ffmpeg at those chapter markers
     srcfile = process_input[1]
-    filetype = process_input[2]
+    srctype = process_input[2]
     outfile = process_input[3]
     splitfile = process_input[4]
 
     # call underlying routine
-    do_chapters(chapter_data, srcfile, outfile, splitfile, filetype)
+    do_chapters(chapter_data, srcfile, srctype, outfile, splitfile)
 
 
 
 # cut source file into chapters
-def do_chapters(chapter_data, src_file, out_file, split_file, file_type):
+def do_chapters(chapter_data, src_file, src_type, out_file, split_file):
     """
     add chapter markers or cut video or audio source file into chapters using ffmpeg
 
     Args:
-        data: list of the starting time codes and the chapter names
+        chapter_data: list of the starting time codes and the chapter names
         src_file: path of the source file
+        src_type: audio or video
         out_file: base name of the chapter tagged output file
         split_file: bool for create individual chapter files
-        file_type: audio or video
     """
     
     # processing bools
     do_full = (out_file != None)
-    do_audio = (file_type == "audio")
+    do_audio = (src_type == "audio")
 
     # create lag of lists
     import itertools
@@ -123,7 +140,7 @@ def do_chapters(chapter_data, src_file, out_file, split_file, file_type):
     # contant strings
     chapterkey = '[CHAPTER]'
     timedef = 'TIMEBASE=1/1000'
-    emptyline = ''
+    emptyline = '\n'
     ffcmd = 'ffmpeg '
     ext = src_extension.rstrip('"') # original extension is the source file
     ffopt = ' -codec copy '
@@ -224,6 +241,7 @@ def do_chapters(chapter_data, src_file, out_file, split_file, file_type):
 
 ######################################################################################3333
 
+# open the fixed file which points to the control file for this project
 cmdfile = "chapter_tag.txt"
 try:
     with open(cmdfile, 'r') as file:
@@ -236,7 +254,6 @@ except FileNotFoundError:
 except Exception as e:
     print(f"An error occurred: {e}")          
 
-
 # parse the control file
 process_input = parse_control_file(procinput)
 
@@ -244,3 +261,5 @@ process_input = parse_control_file(procinput)
 
 # process the chapter information
 process_chapters(process_input)
+
+######################################################################################3333
